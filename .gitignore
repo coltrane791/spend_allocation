@@ -1,0 +1,32 @@
+# Virtual environments
+.venv/
+venv/
+
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Env files / secrets
+.env
+*.env
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Project folders not to publish
+data/
+docs/
+outputs/
+
+# Local legacy snapshots (do not publish)
+src/old/
+notebooks/old/
+
+# Ignore any legacy 'old' folders anywhere under src/ and notebooks/
+src/**/old/
+notebooks/**/old/
