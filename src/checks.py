@@ -369,7 +369,9 @@ def assert_alloc_output(alloc_df: pd.DataFrame, budget: float, allow_unspent: bo
         a = str(r["arm_id"])
         s = float(r["spend_opt"])
         if s < float(r["spend_min"]) - 1e-6 or s > float(r["spend_max"]) + 1e-6:
-            raise AssertionError(f"Spend for {a} violates bounds: {s} not in [{r["spend_min"]}, {r["spend_max"]}]")
+            spend_min = r["spend_min"]
+            spend_max = r["spend_max"]
+            raise AssertionError(f"Spend for {a} violates bounds: {s} not in [{spend_min}, {spend_max}]")
 
     ## Warn (don't fail) if any arm has negative expected profit under forced-spend regime
     neg = alloc_df[alloc_df["exp_profit_net"] < 0]
