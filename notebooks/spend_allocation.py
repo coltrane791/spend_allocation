@@ -90,6 +90,7 @@ Export = {
     "test_runs": False,
     "marg_plots": False,
     "fc_error": False,
+    "diagnostics": True,
 }
 
 # Define the main function to execute the notebook steps
@@ -239,7 +240,7 @@ def main():
     assert_grids_joinable(marg_grid_dd1_df, marg_grid_rc2_df, require_same_env=True)
 
     ## Marginal grid diagnostics
-    tabs_diag_marg_grid = marginal_grids_diagnostics(
+    tabs_diag_marg_grids = marginal_grids_diagnostics(
         {"dd1": marg_grid_dd1_df, "rc1": marg_grid_rc1_df, "rc2": marg_grid_rc2_df},
         reference="dd1",              # optional; defaults to first key
         include_pairwise_diffs=True,  # set False if the workbook gets too large
@@ -436,7 +437,7 @@ def main():
     assert_curve_grid_contract(ensemble_grid_mono_df)
     
     ## Diagnostics using init as reference
-    tabs_diag_ens = marginal_grids_diagnostics(
+    tabs_diag_ens_grids = marginal_grids_diagnostics(
         {"ensemble_init": ensemble_grid_init_df, "ensemble_mono": ensemble_grid_mono_df},
         reference="ensemble_init",
         include_pairwise_diffs=True,
@@ -541,7 +542,7 @@ def main():
                 budget=budget,
                 capacity_conversions=capacity_conversions,
             )
-            print(f"Computed first diagnostic")
+            print(f"Computed first test run diagnostic")
 
         ### Compare performance
         spend_opt = alloc_sum_df.set_index("arm_id")["spend_opt"]
@@ -646,7 +647,7 @@ def main():
 
         if cnt==num_dates:
             tabs_diag_alloc_comp = allocation_comp_diagnostics(day_compare_fin_df, env_id=env_id)
-            print(f"Computed second diagnostic")
+            print(f"Computed second test run diagnostic")
 
         daily_comp_total.append(build_day_total_row(day_compare_fin_df, day=date_t, env_id=env_id))
 
@@ -654,7 +655,6 @@ def main():
     daily_comp_total_df = pd.concat(daily_comp_total, ignore_index=True)
 
     # Graphics
-
     ## Forecast errors
     if Export["fc_error"]:
         g_fc = forecast_errors(
@@ -731,7 +731,7 @@ def main():
                 "marg_grid_dd1": marg_grid_dd1_df,
                 "marg_grid_rc1": marg_grid_rc1_df,
                 "marg_grid_rc2": marg_grid_rc2_df,
-                **tabs_diag_marg_grid,
+                **tabs_diag_marg_grids,
             },
             out_path=out_path,
             index=False,
@@ -775,7 +775,7 @@ def main():
                 "weights_loc": weights_local_df,
                 "ensemble_grid_init": ensemble_grid_init_df,
                 "ensemble_grid_mono": ensemble_grid_mono_df,
-                **tabs_diag_ens,
+                **tabs_diag_ens_grids,
                 "ensemble_grid_fin": ensemble_grid_fin_df,
                 "anchors": anchors_df,
                 "downstream_vals": ds_val_df,
@@ -819,6 +819,28 @@ def main():
             index=False,
         )
         print(f"Wrote test_runs workbook to: {actual_path}")
+
+    ## Diagnostics
+    if Export["diagnostics"]:
+        out_path = out_dir / f"diagnostics ({today_str}).xlsx"
+        actual_path = save_workbook(
+            sheets={
+                "model_perform_dd1": perf_dd1_df,
+                "model_perform_rc1": perf_rc1_df,
+                "model_perform_rc2": perf_rc2_df,
+                **tabs_diag_marg_grids,
+                **tabs_diag_data_support,
+                **tabs_diag_ens_grids,
+                "alloc_input_grid": alloc_grid_df,
+                **tabs_diag_alloc_opt,
+                **tabs_diag_alloc_comp,
+                "test_run_daily_arm": daily_comp_arm_df,
+                "test_run_daily_total": daily_comp_total_df,
+            },
+            out_path=out_path,
+            index=False,
+        )
+        print(f"Wrote diagnostics workbook to: {actual_path}")
 
 if __name__ == "__main__":
     main()
