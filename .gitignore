@@ -30,3 +30,4 @@ notebooks/old/
 # Ignore any legacy 'old' folders anywhere under src/ and notebooks/
 src/**/old/
 notebooks/**/old/
+/agent/
