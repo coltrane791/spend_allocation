@@ -1,4 +1,4 @@
-# notebooks/07_spend_allocation.py
+# notebooks/spend_allocation.py
 
 """
 Functions as 'control panel' in relation to other modules.
@@ -77,7 +77,7 @@ from src.diagnostics import (
 # Parameters
 ## Directory
 out_dir = PROJECT_ROOT / "outputs"
-out_dir_g = out_dir / "graphics"
+out_dir_g = out_dir / f"graphics ({today_str})"
 
 ## Select output
 Export = {
@@ -90,7 +90,7 @@ Export = {
     "test_runs": False,
     "marg_plots": False,
     "fc_error": False,
-    "diagnostics": True,
+    "agent": True,
 }
 
 # Define the main function to execute the notebook steps
@@ -178,15 +178,15 @@ def main():
     mean_spend_test = ad_spend_test_df.groupby("arm_id")["spend"].mean().to_dict()
     min_spend_test = ad_spend_test_df.groupby("arm_id")["spend"].min().to_dict()
     max_spend_test = ad_spend_test_df.groupby("arm_id")["spend"].max().to_dict()
-    min_spend = {a: 0.5 * v for a, v in min_spend_test.items()}
-    max_spend = {a: 2 * v for a, v in max_spend_test.items()}
+    min_spend_grid = {a: 0.5 * v for a, v in min_spend_test.items()}
+    max_spend_grid = {a: 2 * v for a, v in max_spend_test.items()}
 
     ## Shared spend grid for all estimators
     n_points = 25
     arms = sorted(ad_spend_df["arm_id"].unique())
     spend_grid_by_arm = build_spend_grid_by_arm(
-        min_spend=min_spend,
-        max_spend=max_spend,
+        min_spend=min_spend_grid,
+        max_spend=max_spend_grid,
         arms=arms,
         n_points=n_points,
     )
@@ -196,8 +196,8 @@ def main():
     estimator=estimators["dd1"]["name"],
     env_id=env_id,
     ad_spend_df=ad_spend_train_df,
-    min_spend=min_spend,
-    max_spend=max_spend,
+    min_spend=min_spend_grid,
+    max_spend=max_spend_grid,
     S=S,
     M=M,
     arm_col="arm_id",
@@ -211,8 +211,8 @@ def main():
         estimator=estimators["rc1"]["name"],
         env_id=env_id,
         params_df=params_rc1_df,     # alpha_hat/beta_hat/gamma_hat/delta_hat
-        min_spend=min_spend,
-        max_spend=max_spend,
+        min_spend=min_spend_grid,
+        max_spend=max_spend_grid,
         S=S,
         M=M,
         arm_col="arm_id",
@@ -225,8 +225,8 @@ def main():
         estimator=estimators["rc2"]["name"],
         env_id=env_id,
         params_df=params_rc2_df,     # alpha_hat/beta_hat/gamma_hat/delta_hat
-        min_spend=min_spend,
-        max_spend=max_spend,
+        min_spend=min_spend_grid,
+        max_spend=max_spend_grid,
         S=S,
         M=M,
         arm_col="arm_id",
@@ -290,8 +290,8 @@ def main():
         folds=folds,
         estimators=estimators,
         spend_grid_by_arm=spend_grid_by_arm,
-        min_spend=min_spend,
-        max_spend=max_spend,
+        min_spend=min_spend_grid,
+        max_spend=max_spend_grid,
         arm_col="arm_id",
     )
 
@@ -363,8 +363,8 @@ def main():
         folds=folds,
         estimators=estimators,
         spend_grid_by_arm=spend_grid_by_arm,
-        min_spend=min_spend,
-        max_spend=max_spend,
+        min_spend=min_spend_grid,
+        max_spend=max_spend_grid,
         kernel="gaussian",
         bandwidth_mult=2.5,
         # optional: more/less locality per estimator *key* (not name)
@@ -505,11 +505,15 @@ def main():
             .rename(columns={"spend": "spend_actual", "conversions": "conversions_actual", "funded_loans": "funded_loans_actual", "profit_gross": "profit_gross_actual", "profit_net": "profit_net_actual"})
             .copy()
         )
-
-        ## Budget
         spend_actual = actuals_day_df.set_index("arm_id")["spend_actual"]
+
+        ### Spend bounds per-arm
+        min_spend_run = {a: 0.8 * v for a, v in spend_actual.items()}
+        max_spend_run = {a: 1.2 * v for a, v in spend_actual.items()}
+
+        ## Budget cap
         budget = float(spend_actual.sum())*1.2
-        assert_spend_bounds_feasible(min_spend, max_spend, budget)
+        assert_spend_bounds_feasible(min_spend_run, max_spend_run, budget)
         
         ## Optimization routine
         alloc_df = allocate_budget_kkt(
@@ -524,8 +528,8 @@ def main():
             exp_profit_col="exp_profit_net",
             val_col="value_per_conv",
             allow_unspent=allow_unspent,
-            min_spend=min_spend,
-            max_spend=max_spend,
+            min_spend=min_spend_run,
+            max_spend=max_spend_run,
             capacity_conversions=capacity_conversions,
         )
         alloc_sum_df = alloc_df.iloc[:-1].copy()
@@ -656,7 +660,7 @@ def main():
 
     # Graphics
     ## Forecast errors
-    if Export["fc_error"]:
+    if (Export["fc_error"] or Export["agent"]):
         g_fc = forecast_errors(
             daily_comp_arm_df,
             out_dir=out_dir_g,
@@ -668,7 +672,7 @@ def main():
         print(f"Wrote forecast error graphics to {out_dir_g}:")
 
     # Marginal curves
-    if Export["marg_plots"]:
+    if (Export["marg_plots"] or Export["agent"]):
         spend_points_df = (pd.concat([spend_actual, spend_opt], axis=1,).reset_index())
         assert_spend_df(spend_points_df)
 
@@ -820,9 +824,27 @@ def main():
         )
         print(f"Wrote test_runs workbook to: {actual_path}")
 
-    ## Diagnostics
-    if Export["diagnostics"]:
-        out_path = out_dir / f"diagnostics ({today_str}).xlsx"
+    ## Agent package
+    if Export["agent"]:
+        out_path = out_dir / f"marginal_grids ({today_str}).xlsx"
+        actual_path = save_workbook(
+            sheets={
+                "dd1_gird_conv": marg_grid_dd1_df,
+                "rc1_grid_conv": marg_grid_rc1_df,
+                "rc2_grid_conv": marg_grid_rc2_df,
+                "confidence_local": conf_local_df,
+                "weights_local": weights_local_df,
+                "ensemble_grid_conv_init": ensemble_grid_init_df,
+                "ensemble_grid_conv_mono": ensemble_grid_mono_df,
+                "ensemble_grid_conv_fin": ensemble_grid_fin_df,
+                "ensemble_grid_net_profit": marg_profit_grid_df,
+            },
+            out_path=out_path,
+            index=False,
+        )
+        print(f"Wrote marginal_grids workbook to: {actual_path}")
+        
+        out_path = out_dir / f"diagnostics_last_day ({today_str}).xlsx"
         actual_path = save_workbook(
             sheets={
                 "model_perform_dd1": perf_dd1_df,
@@ -831,16 +853,24 @@ def main():
                 **tabs_diag_marg_grids,
                 **tabs_diag_data_support,
                 **tabs_diag_ens_grids,
-                "alloc_input_grid": alloc_grid_df,
                 **tabs_diag_alloc_opt,
                 **tabs_diag_alloc_comp,
-                "test_run_daily_arm": daily_comp_arm_df,
-                "test_run_daily_total": daily_comp_total_df,
             },
             out_path=out_path,
             index=False,
         )
-        print(f"Wrote diagnostics workbook to: {actual_path}")
+        print(f"Wrote diagnostics_last_day workbook to: {actual_path}")
+
+        out_path = out_dir / f"diagnostics_30_days ({today_str}).xlsx"
+        actual_path = save_workbook(
+            sheets={
+                "daily_arm": daily_comp_arm_df,
+                "daily_total": daily_comp_total_df,
+            },
+            out_path=out_path,
+            index=False,
+        )
+        print(f"Wrote diagnostics_30_days workbook to: {actual_path}")
 
 if __name__ == "__main__":
     main()

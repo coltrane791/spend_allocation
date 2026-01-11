@@ -422,13 +422,13 @@ def export_env_curve_pngs_and_pdf(
     written: dict[str, Path] = {}
 
     # PNG directory
-    png_dir = out_dir / f"env_id={env_id}" / "png"
+    png_dir = out_dir / f"marg_curves_env_id={env_id}" / "png"
     if write_pngs:
         png_dir.mkdir(parents=True, exist_ok=True)
         written["png_dir"] = png_dir
 
     # PDF path
-    pdf_path = out_dir / f"env_id={env_id}" / f"marginal_curves_env_id={env_id}.pdf"
+    pdf_path = out_dir / f"marg_curves_env_id={env_id}" / f"marginal_curves_env_id={env_id}.pdf"
     if write_pdf:
         _ensure_dir(pdf_path)
         written["pdf_path"] = pdf_path
